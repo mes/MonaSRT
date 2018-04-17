@@ -22,7 +22,7 @@
 #undef min
 #undef max
 
-#include "OutputApp.h"
+#include "SRTOut.h"
 #include "Mona/String.h"
 #include "Mona/AVC.h"
 #include "Mona/SocketAddress.h"
@@ -34,7 +34,7 @@ using namespace std;
 static const int64_t epollWaitTimoutMS = 250;
 static const int64_t reconnectPeriodMS = 1000;
 
-class OutputApp::Client::OpenSrtPIMPL : private Thread {
+class SRTOut::Client::OpenSrtPIMPL : private Thread {
 	private:
 		::SRTSOCKET _socket;
 		bool _started;
@@ -42,7 +42,7 @@ class OutputApp::Client::OpenSrtPIMPL : private Thread {
 		std::mutex _mutex;
 	public:
 		OpenSrtPIMPL() :
-			_socket(::SRT_INVALID_SOCK), _started(false), Thread("OutputApp") {
+			_socket(::SRT_INVALID_SOCK), _started(false), Thread("SRTOut") {
 		}
 		~OpenSrtPIMPL() {
 			Close();
@@ -310,16 +310,16 @@ private:
 		}
 };
 
-OutputApp::OutputApp(const Parameters& configs): App(configs)
+SRTOut::SRTOut(const Parameters& configs): App(configs)
 {
 	_target.assign(configs.getString("srt.target", "localhost:4900"));
 }
 
-OutputApp::~OutputApp() {
+SRTOut::~SRTOut() {
 }
 
-OutputApp::Client::Client(Mona::Client& client, const string& host) : App::Client(client), _first(true), _pPublication(NULL), _videoCodecSent(false), _audioCodecSent(false),
-	_srtPimpl(new OutputApp::Client::OpenSrtPIMPL()) {
+SRTOut::Client::Client(Mona::Client& client, const string& host) : App::Client(client), _first(true), _pPublication(NULL), _videoCodecSent(false), _audioCodecSent(false),
+	_srtPimpl(new SRTOut::Client::OpenSrtPIMPL()) {
 
 	FATAL_CHECK(_srtPimpl.get() != nullptr);
 	_srtPimpl->Open(host);
@@ -396,7 +396,7 @@ OutputApp::Client::Client(Mona::Client& client, const string& host) : App::Clien
 	INFO("A new publish client is connecting from ", client.address);
 }
 
-OutputApp::Client::~Client() {
+SRTOut::Client::~Client() {
 	INFO("Client from ", client.address, " is disconnecting...")
 
 	_srtPimpl->Close();
@@ -404,7 +404,7 @@ OutputApp::Client::~Client() {
 	resetSRT();
 }
 
-bool OutputApp::Client::onPublish(Exception& ex, Publication& publication) {
+bool SRTOut::Client::onPublish(Exception& ex, Publication& publication) {
 	INFO("Client from ", client.address, " is trying to publish ", publication.name())
 
 	if (_pPublication) {
@@ -421,13 +421,13 @@ bool OutputApp::Client::onPublish(Exception& ex, Publication& publication) {
 	return true;
 }
 
-void OutputApp::Client::onUnpublish(Publication& publication) {
+void SRTOut::Client::onUnpublish(Publication& publication) {
 	INFO("Client from ", client.address, " has closed publication ", publication.name(), ", stopping the injection...")
 
 	resetSRT();
 }
 
-void OutputApp::Client::resetSRT() {
+void SRTOut::Client::resetSRT() {
 
 	if (_pPublication) {
 		_pPublication->onAudio = nullptr;
@@ -443,23 +443,23 @@ void OutputApp::Client::resetSRT() {
 }
 
 template <>
-void OutputApp::Client::writeMedia<Media::Video::Tag>(Mona::BinaryWriter& writer, const Media::Video::Tag& tag, const Mona::Packet& packet) {
+void SRTOut::Client::writeMedia<Media::Video::Tag>(Mona::BinaryWriter& writer, const Media::Video::Tag& tag, const Mona::Packet& packet) {
 	_tsWriter.writeVideo(0, tag, packet, [&writer](const Packet& output) { writer.write(output); });
 }
 
 template <>
-void OutputApp::Client::writeMedia<Media::Audio::Tag>(Mona::BinaryWriter& writer, const Media::Audio::Tag& tag, const Mona::Packet& packet) {
+void SRTOut::Client::writeMedia<Media::Audio::Tag>(Mona::BinaryWriter& writer, const Media::Audio::Tag& tag, const Mona::Packet& packet) {
 	_tsWriter.writeAudio(0, tag, packet, [&writer](const Packet& output) { writer.write(output); });
 }
 
-bool OutputApp::Client::writePayload(UInt16 context, shared_ptr<Buffer>& pBuffer) {
+bool SRTOut::Client::writePayload(UInt16 context, shared_ptr<Buffer>& pBuffer) {
 
 	int res = _srtPimpl->Write(pBuffer);
 
 	return (res == (int)pBuffer->size());
 }
 
-OutputApp::Client* OutputApp::newClient(Mona::Exception& ex, Mona::Client& client, Mona::DataReader& parameters, Mona::DataWriter& response) {
+SRTOut::Client* SRTOut::newClient(Mona::Exception& ex, Mona::Client& client, Mona::DataReader& parameters, Mona::DataWriter& response) {
 
 	return new Client(client, _target);
 }

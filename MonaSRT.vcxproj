@@ -228,7 +228,7 @@
   <ItemGroup>
     <ClCompile Include="sources\MonaSRT.cpp" />
     <ClCompile Include="sources\main.cpp" />
-    <ClCompile Include="sources\OutputApp.cpp" />
+    <ClCompile Include="sources\SRTOut.cpp" />
     <ClCompile Include="sources\SRTIn.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -244,7 +244,7 @@
   <ItemGroup>
     <ClInclude Include="include\App.h" />
     <ClInclude Include="include\MonaSRT.h" />
-    <ClInclude Include="include\OutputApp.h" />
+    <ClInclude Include="include\SRTOut.h" />
     <ClInclude Include="include\SRTIn.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

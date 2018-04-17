@@ -18,7 +18,7 @@
 #include "App.h"
 #include "Mona/TSWriter.h"
 
-struct OutputApp : virtual Mona::App {
+struct SRTOut : virtual Mona::App {
 
 	struct Client : App::Client, virtual Mona::Object {
 		Client(Mona::Client& client, const std::string& host);
@@ -79,12 +79,12 @@ struct OutputApp : virtual Mona::App {
 		std::unique_ptr<OpenSrtPIMPL> _srtPimpl;
 	};
 
-	OutputApp(const Mona::Parameters& configs);
-	virtual ~OutputApp();
+	SRTOut(const Mona::Parameters& configs);
+	virtual ~SRTOut();
 
 	virtual void onHandshake(const std::string& protocol, const Mona::SocketAddress& address, const Mona::Parameters& properties, std::set<Mona::SocketAddress>& addresses) {}
 
-	virtual OutputApp::Client* newClient(Mona::Exception& ex, Mona::Client& client, Mona::DataReader& parameters, Mona::DataWriter& response);
+	virtual SRTOut::Client* newClient(Mona::Exception& ex, Mona::Client& client, Mona::DataReader& parameters, Mona::DataWriter& response);
 
 	virtual void manage() {}
 private:

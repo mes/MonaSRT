@@ -16,7 +16,7 @@
 #include "SRTIn.h"
 
 #include "MonaSRT.h"
-#include "OutputApp.h"
+#include "SRTOut.h"
 #include "Mona/Logs.h"
 
 using namespace std;
@@ -31,7 +31,7 @@ namespace Mona {
 //// Server Events /////
 void MonaSRT::onStart() {
 
-	_applications["/srt"] = new OutputApp(*this);
+	_applications["/srt"] = new SRTOut(*this);
 	if (getBoolean<false>("SRT")) {
 		_srtIn = new SRTIn(*this, *this);
 		_srtIn->load();
