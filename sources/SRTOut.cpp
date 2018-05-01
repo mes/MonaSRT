@@ -313,6 +313,7 @@ private:
 SRTOut::SRTOut(const Parameters& configs): App(configs)
 {
 	_target.assign(configs.getString("srt.target", "localhost:4900"));
+	setString("State", "Created");
 }
 
 SRTOut::~SRTOut() {
@@ -460,6 +461,17 @@ bool SRTOut::Client::writePayload(UInt16 context, shared_ptr<Buffer>& pBuffer) {
 }
 
 SRTOut::Client* SRTOut::newClient(Mona::Exception& ex, Mona::Client& client, Mona::DataReader& parameters, Mona::DataWriter& response) {
+	DEBUG("SRTOut::newClient for path ", client.path.empty() ? "/" : client.path);
 
-	return new Client(client, _target);
+	auto it = _clients.insert(_clients.end(), new Client(client, _target));
+	return *it;
+}
+
+void SRTOut::closeClients() {
+	DEBUG("SRTOut::closeClients");
+	
+	for (auto &it : _clients) {
+		it->client.writer().close();
+	}
+	_clients.clear();
 }

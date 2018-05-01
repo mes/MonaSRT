@@ -17,6 +17,7 @@
 
 #include "App.h"
 #include "Mona/TSWriter.h"
+#include <list>
 
 struct SRTOut : virtual Mona::App {
 
@@ -85,8 +86,11 @@ struct SRTOut : virtual Mona::App {
 	virtual void onHandshake(const std::string& protocol, const Mona::SocketAddress& address, const Mona::Parameters& properties, std::set<Mona::SocketAddress>& addresses) {}
 
 	virtual SRTOut::Client* newClient(Mona::Exception& ex, Mona::Client& client, Mona::DataReader& parameters, Mona::DataWriter& response);
+	virtual void closeClients();
 
 	virtual void manage() {}
 private:
 	std::string _target;
+	std::string _name;
+	std::list<SRTOut::Client*> _clients;
 };

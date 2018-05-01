@@ -21,7 +21,7 @@
 
 namespace Mona {
 
-struct App : virtual Object {
+struct App : Parameters, virtual Object {
 
 	struct Client : virtual Object {
 		Client(Mona::Client& client) : client(client) {}
@@ -40,7 +40,7 @@ struct App : virtual Object {
 		Mona::Client& client;
 	};
 
-	App(const Parameters& configs) {}
+	App(const Parameters& configs) : Parameters(configs) {}
 
 
 	virtual SocketAddress& onHandshake(const std::string& protocol, const SocketAddress& address, const Parameters& properties, SocketAddress& redirection) { return redirection; }
@@ -48,6 +48,7 @@ struct App : virtual Object {
 	virtual App::Client* newClient(Exception& ex, Mona::Client& client, DataReader& parameters, DataWriter& response) {
 		return NULL;
 	}
+	virtual void closeClients() {}
 
 	virtual void manage() {}
 };

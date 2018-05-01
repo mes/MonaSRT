@@ -16,13 +16,10 @@
 #include "Mona/Server.h"
 #include "Mona/ServerApplication.h"
 #include "MonaSRT.h"
-#include "Version.h"
 #include "MonaSRTVersion.h"
 
-#define VERSION \
-	"1." STRINGIZE(MONA_VERSION) \
-	"-srt-" \
-	STRINGIZE(MONASRT_VERSION)
+const int defaultHTTPRangeStart = 1020;
+const int defaultHTTPRangeEnd = defaultHTTPRangeStart + 10;
 
 using namespace std;
 using namespace Mona;
@@ -32,15 +29,45 @@ struct ServerApp : ServerApplication  {
 	ServerApp () : ServerApplication() {
 		setBoolean("HTTP", false);
 		setBoolean("HTTPS", false);
+		setBoolean("WS", false);
+		setBoolean("WSS", false);
 		setBoolean("RTMFP", false);
-		setString("logs.maxsize", "50000000");
+		if ((false)) {
+			setString("logs.maxsize", "50000000");
+		}
 	}
 
-	const char* defineVersion() { return VERSION; }
+	const char* defineVersion() { return MONASRT_VERSION_STRING; }
 
 ///// MAIN
 	int main(TerminateSignal& terminateSignal) {
 
+		// find a we can bind to in the range
+		unique<Socket> socket(new Socket(Socket::TYPE_STREAM));
+		FATAL_CHECK(socket.get() != nullptr);
+		
+		UInt16 port = 0;
+		for (UInt16 p = defaultHTTPRangeStart; p <= defaultHTTPRangeEnd; p++) {
+			DEBUG("Trying port ", p);
+
+			Exception ex;
+			if (socket->bind(ex, SocketAddress(IPAddress::Loopback(), p))) {
+				INFO("Will use port ", p, " for control endpoint");
+				port = p;
+				break;
+			}
+		}
+		socket.release();
+
+		if (!port) {
+			ERROR("Failed to find port for control channel (",
+				defaultHTTPRangeStart, " - ", defaultHTTPRangeEnd, ")");
+			return Application::EXIT_UNAVAILABLE;
+		}
+
+		setBoolean("HTTP", true);
+		setNumber("HTTP.port", port);
+		
 		// starts the server
 		MonaSRT server(file().parent()+"www", getNumber<UInt32>("cores"), terminateSignal);
 

@@ -21,7 +21,51 @@
 #include "App.h"
 
 struct SRTIn;
+struct SRTOut;
 namespace Mona {
+
+struct SRTOpenParams {
+	enum modeT {
+		MODE_NOTSET = 0,
+		MODE_CALLER = 1,
+		MODE_SERVER = 2
+	};
+	modeT _mode;
+	SocketAddress _address;
+	::std::string _password;
+	enum keyLenT {
+		KEY_LEN_NOTSET = 0,
+		KEY_LEN_96     = 12,
+		KEY_LEN_128    = 16,
+		KEY_LEN_256    = 32
+	};
+	keyLenT _keylen;
+
+	SRTOpenParams() :
+		_mode(MODE_NOTSET),
+		_address(),
+		_password(),
+		_keylen(KEY_LEN_NOTSET)
+	{
+		// No-op
+	}
+	bool SetFromURL(const ::std::string& url);
+};
+
+// struct RouteDesc {
+// 	::std::string _name;
+// 
+// 	enum typeT {
+// 		TYPE_NOTSET       = 0,
+// 		TYPE_SRTTS        = 1,
+// 		TYPE_UDPTS        = 2,
+// 		TYPE_RTMPSERVER   = 3
+// 	};
+// 
+// 	typeT _ingressType;
+// 	::std::string ingressURL;
+// 	::std::string egressURL;
+// };
 
 struct MonaSRT : Server {
 	MonaSRT(const std::string& wwwPath, UInt16 cores, TerminateSignal& terminateSignal) :
@@ -56,9 +100,12 @@ protected:
 	void onUnsubscribe(const Subscription& subscription, const Publication& publication, Client* pClient);
 
 	TerminateSignal&			_terminateSignal;
-	std::map<std::string,App*>	_applications;
+	typedef std::map<std::string,App*> AppsMapT;
+	AppsMapT	_appsByName;
+	AppsMapT	_appsById;
+
 	SRTIn*						_srtIn;
-	std::string					_wwwPath;
+	std::string					_wwwPath;	
 };
 
 } // namespace Mona
