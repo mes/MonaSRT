@@ -27,6 +27,7 @@
 #include "Mona/AVC.h"
 #include "Mona/SocketAddress.h"
 #include "Mona/Thread.h"
+#include "Mona/Util.h"
 
 #include <sstream>
 
@@ -36,11 +37,131 @@ using namespace std;
 static const int64_t epollWaitTimoutMS = 250;
 static const int64_t reconnectPeriodMS = 1000;
 
+struct SRTOpenParams {
+	enum modeT {
+		MODE_NOTSET = 0,
+		MODE_CALLER = 1,
+		MODE_LISTENER = 2,
+		MODE_RENDEZVOUS = 3
+	};
+	modeT _mode;
+	Mona::SocketAddress _address;
+	::std::string _password;
+	enum keyLenT {
+		KEY_LEN_NOTSET = 0,
+		KEY_LEN_96     = 12,
+		KEY_LEN_128    = 16,
+		KEY_LEN_256    = 32
+	};
+	keyLenT _keylen;
+	int _latency;
+
+	SRTOpenParams() :
+		_mode(MODE_NOTSET),
+		_address(),
+		_password(),
+		_keylen(KEY_LEN_NOTSET),
+		_latency(0)
+	{
+		// No-op
+	}
+	bool SetFromURL(const ::std::string& url, ::std::string& err);
+};
+
+bool SRTOpenParams::SetFromURL(const ::std::string& url, std::string& err)
+{
+	std::string address, path, query;
+	Mona::Util::UnpackUrl(url, address, path, query);
+
+	DEBUG("address: ", address, " path: ", path, " query: ", query);
+
+	if (address.empty()) {
+		err = "Failed to decode target host address from " + url;
+		return false;
+	}
+
+	SRTOpenParams::modeT mode = SRTOpenParams::MODE_CALLER;
+	const char wildcard[] = "0.0.0.0";
+	if (address.front() == ':') {
+		mode = SRTOpenParams::MODE_LISTENER;
+		address =  wildcard + address;
+	} else if (address.compare(0, sizeof(wildcard) - 1, wildcard)) {
+		mode = SRTOpenParams::MODE_LISTENER;
+	}
+
+	Exception ex;
+	Mona::SocketAddress addr;
+	addr.setWithDNS(ex, address);
+	if (ex || addr.family() != IPAddress::IPv4) {
+		const std::string& exs(ex);
+		err = "Failed to resolve target host address, " + exs;
+		return false;
+	}
+	_mode = mode;
+	_address = addr;
+
+	if (query.empty())
+		return true;
+
+	Mona::Util::ForEachParameter forEach([this, &err](
+			const string& key, const char* value) {
+		DEBUG("Query params key: ", key, " value: ", value);
+		if (!Mona::String::ICompare(key,"mode")) {
+			if (!Mona::String::ICompare(value, "caller")) {
+				_mode = SRTOpenParams::MODE_CALLER;
+			} else if (!Mona::String::ICompare(value, "listener")) {
+				_mode = SRTOpenParams::MODE_LISTENER;
+			} else if (!Mona::String::ICompare(value, "rendezvous")) {
+				_mode = SRTOpenParams::MODE_LISTENER;
+			} else {
+				err = "Invalid mode";
+				return false;
+			}
+		} else if (!Mona::String::ICompare(key, "pass", 4)) {
+			size_t len = (value) ? strlen(value) : 0;
+			if (len >= 10 && len <= 79) {
+				_password = value;
+			} else {
+				// abort on bad password to avoid sending in clear by accident
+				err = "Passphrase must be between 10 and 79 characters long";
+				return false;
+			}
+		} else if (!Mona::String::ICompare(key, "key", 3)) {
+			int len = Mona::String::ToNumber<int, 0>(value);
+			switch(len) {
+				case 96:
+					_keylen = SRTOpenParams::KEY_LEN_96;
+					break;
+				case 128:
+					_keylen = SRTOpenParams::KEY_LEN_128;
+					break;
+				case 256:
+					_keylen = SRTOpenParams::KEY_LEN_256;
+					break;
+				default:
+					_keylen = SRTOpenParams::KEY_LEN_NOTSET;
+					break;
+			}
+		} else if (!Mona::String::ICompare(key, "latency")) {
+			_latency = Mona::String::ToNumber<int, 120>(value);
+		}
+		return true;
+	});
+	Mona::Util::UnpackQuery(query, forEach);
+	if (!err.empty()) {
+		ERROR(err);
+		*this = SRTOpenParams();
+		return false;
+	}
+
+	return true;
+}
+
 class SRTOut::Client::OpenSrtPIMPL : private Thread {
 	private:
 		::SRTSOCKET _socket;
 		bool _started;
-		string _host;
+		SRTOpenParams _openParams;
 		std::mutex _mutex;
 		std::string _errorDetail;
 	public:
@@ -51,22 +172,28 @@ class SRTOut::Client::OpenSrtPIMPL : private Thread {
 			Close();
 		}
 
-		bool Open(const string& host) {
+		bool Open(const string& url) {
 			if (_started) {
-				ERROR("SRT Open: Already open, please close first")
+				_errorDetail = "SRT Open: Already open, please close first";
+				ERROR(_errorDetail)
 				return false;
 			}
 
 			if (::srt_startup()) {
-				ERROR("SRT Open: Error starting SRT library")
+				_errorDetail = "SRT Open: Error starting SRT library";
+				ERROR(_errorDetail)
 				return false;
 			}
+	
+			if (!_openParams.SetFromURL(url, _errorDetail)) {
+				return false;
+			}
+
 			_started = true;
-			_host = host;
 
 			::srt_setloghandler(nullptr, logCallback);
 			::srt_setloglevel(0xff);
-
+			
 			Thread::start();
 
 			INFO("SRT opened")
@@ -82,7 +209,7 @@ class SRTOut::Client::OpenSrtPIMPL : private Thread {
 				::srt_setloghandler(nullptr, nullptr);
 				::srt_cleanup();
 				_started = false;
-				_host.clear();
+				_openParams = SRTOpenParams();
 			}
 		}
 
@@ -92,14 +219,8 @@ class SRTOut::Client::OpenSrtPIMPL : private Thread {
 		}
 
 		bool ConnectActual() {
-			SocketAddress addr;
+			_errorDetail.clear();
 
-			Exception ex;
-			if (!addr.set(ex, _host) || addr.family() != IPAddress::IPv4) {
-				ERROR("SRT Open: can't resolve target host, ", _host)
-				return false;
-			}
-			
 			if (_socket != ::SRT_INVALID_SOCK) {
 				ERROR("Already connected, please disconnect first")
 				return false;
@@ -107,28 +228,67 @@ class SRTOut::Client::OpenSrtPIMPL : private Thread {
 
 			_socket = ::srt_socket(AF_INET, SOCK_DGRAM, 0);
 			if (_socket == ::SRT_INVALID_SOCK ) {
-				ERROR("SRT create socket: ", ::srt_getlasterror_str());
+				_errorDetail.assign("SRT create socket: ")
+					+ ::srt_getlasterror_str();
+				ERROR(_errorDetail);
 				return false;
 			}
 
 			bool block = false;
 			int rc = ::srt_setsockopt(_socket, 0, SRTO_SNDSYN, &block, sizeof(block));
-			if (rc != 0)
-			{
-				ERROR("SRT SRTO_SNDSYN: ", ::srt_getlasterror_str());
+			if (rc != 0) {
+				_errorDetail.assign("SRT SRTO_SNDSYN: ")
+					+ ::srt_getlasterror_str();
+				ERROR(_errorDetail);
 				DisconnectActual();
 				return false;
 			}
 			rc = ::srt_setsockopt(_socket, 0, SRTO_RCVSYN, &block, sizeof(block));
-			if (rc != 0)
-			{
-				ERROR("SRT SRTO_RCVSYN: ", ::srt_getlasterror_str());
+			if (rc != 0) {
+				_errorDetail.assign("SRT SRTO_RCVSYN: ")
+					+ ::srt_getlasterror_str();
+				ERROR(_errorDetail);
 				DisconnectActual();
 				return false;
 			}
 
 			int opt = 1;
 			::srt_setsockflag(_socket, ::SRTO_SENDER, &opt, sizeof opt);
+
+			if (!_openParams._password.empty()) {
+				rc = srt_setsockopt (_socket, 0, SRTO_PASSPHRASE,
+					_openParams._password.c_str(),
+					_openParams._password.size() + 1);
+				if (rc != 0) {
+					_errorDetail.assign("SRT SRTO_PASSPHRASE: ")
+						+ ::srt_getlasterror_str();
+					ERROR(_errorDetail);
+					DisconnectActual();
+					return false;
+				}
+				opt = (_openParams._keylen != SRTOpenParams::KEY_LEN_NOTSET) ?
+					_openParams._keylen : SRTOpenParams::KEY_LEN_128;
+				rc = srt_setsockopt (_socket, 0, SRTO_PBKEYLEN, &opt, sizeof opt);
+				if (rc != 0) {
+					_errorDetail.assign("SRT SRTO_PBKEYLEN: ")
+						+ ::srt_getlasterror_str();
+					ERROR(_errorDetail);
+					DisconnectActual();
+					return false;
+				}
+			}
+
+			if (_openParams._latency > 0) {
+				opt = _openParams._latency;
+				rc = srt_setsockopt (_socket, 0, SRTO_LATENCY, &opt, sizeof opt);
+				if (rc != 0) {
+					_errorDetail.assign("SRT SRTO_LATENCY: ")
+						+ ::srt_getlasterror_str();
+					ERROR(_errorDetail);
+					DisconnectActual();
+					return false;
+				}
+			}
 
 			::SRT_SOCKSTATUS state = ::srt_getsockstate(_socket);
 			if (state != SRTS_INIT) {
@@ -137,14 +297,18 @@ class SRTOut::Client::OpenSrtPIMPL : private Thread {
 				return false;
 			}
 
-			INFO("Connecting to ", addr.host(), " port ", addr.port())
+			INFO("Connecting to ", _openParams._address.host(),
+				  " port ", _openParams._address.port())
 
 			// SRT support only IPV4 so we convert to a sockaddr_in
 			sockaddr soaddr;
-			memcpy(&soaddr, addr.data(), sizeof(sockaddr)); // WARN: work only with ipv4 addresses
+			// WARNING: work only with ipv4 addresses
+			memcpy(&soaddr, _openParams._address.data(), sizeof(sockaddr));
 			soaddr.sa_family = AF_INET;
 			if (::srt_connect(_socket, &soaddr, sizeof(sockaddr))) {
-				ERROR("SRT Connect: ", ::srt_getlasterror_str());
+				_errorDetail.assign("SRT Connect: ")
+					+ ::srt_getlasterror_str();
+				ERROR(_errorDetail);
 				DisconnectActual();
 				return false;
 			}
@@ -304,12 +468,13 @@ class SRTOut::Client::OpenSrtPIMPL : private Thread {
 			return true;
 		}
 
-		const char* GetSRTStateString()
-		{
+		const char* GetSRTStateString() {
 			if (!_errorDetail.empty())
 				return "InError";
-			if (srt_getsockstate(_socket) == SRTS_CONNECTED)
+			if (srt_getsockstate(_socket) == SRTS_CONNECTED) {
+				// TODO: check encryption status?
 				return "Connected";
+			}
 
 			return "Connecting";
 		}
@@ -322,6 +487,7 @@ class SRTOut::Client::OpenSrtPIMPL : private Thread {
 					<< "{\"State\":\"InError\"," \
 					<< "\"ErrorDetail\"= \"" << _errorDetail \
 					<< "\"}" << endl;
+				response = ostr.str();
 				return;
 			}
 			

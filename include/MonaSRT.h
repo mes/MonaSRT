@@ -24,33 +24,7 @@ struct SRTIn;
 struct SRTOut;
 namespace Mona {
 
-struct SRTOpenParams {
-	enum modeT {
-		MODE_NOTSET = 0,
-		MODE_CALLER = 1,
-		MODE_SERVER = 2
-	};
-	modeT _mode;
-	SocketAddress _address;
-	::std::string _password;
-	enum keyLenT {
-		KEY_LEN_NOTSET = 0,
-		KEY_LEN_96     = 12,
-		KEY_LEN_128    = 16,
-		KEY_LEN_256    = 32
-	};
-	keyLenT _keylen;
 
-	SRTOpenParams() :
-		_mode(MODE_NOTSET),
-		_address(),
-		_password(),
-		_keylen(KEY_LEN_NOTSET)
-	{
-		// No-op
-	}
-	bool SetFromURL(const ::std::string& url);
-};
 
 // struct RouteDesc {
 // 	::std::string _name;
