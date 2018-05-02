@@ -22,12 +22,12 @@
 struct SRTOut : virtual Mona::App {
 
 	struct Client : App::Client, virtual Mona::Object {
-		Client(Mona::Client& client, const std::string& host);
+		Client(Mona::Client& client, const Mona::Parameters& configs);
 		virtual ~Client();
 
 		/* Client implementation */
 		virtual void onAddressChanged(const Mona::SocketAddress& oldAddress) {}
-		virtual bool onInvocation(Mona::Exception& ex, const std::string& name, Mona::DataReader& arguments, Mona::UInt8 responseType) { return true; }
+		virtual bool onInvocation(Mona::Exception& ex, const std::string& name, Mona::DataReader& arguments, Mona::UInt8 responseType);
 		virtual bool onFileAccess(Mona::Exception& ex, Mona::File::Mode mode, Mona::Path& file, Mona::DataReader& arguments, Mona::DataWriter& properties) { return true; }
 
 		virtual bool onPublish(Mona::Exception& ex, Mona::Publication& publication);
@@ -36,6 +36,7 @@ struct SRTOut : virtual Mona::App {
 		virtual bool onSubscribe(Mona::Exception& ex, const Mona::Subscription& subscription, const Mona::Publication& publication) { return true; }
 		virtual void onUnsubscribe(const Mona::Subscription& subscription, const Mona::Publication& publication) {}
 	
+		virtual bool onHTTPRequest(const std::string& method, const std::string& name, const std::string& body, std::string& response);
 	private:
 
 		// Push the current frame into the TS writer
@@ -84,13 +85,14 @@ struct SRTOut : virtual Mona::App {
 	virtual ~SRTOut();
 
 	virtual void onHandshake(const std::string& protocol, const Mona::SocketAddress& address, const Mona::Parameters& properties, std::set<Mona::SocketAddress>& addresses) {}
+	virtual bool onHTTPRequest(const std::string& method, const std::string& name, const std::string& body, std::string& response);
 
-	virtual SRTOut::Client* newClient(Mona::Exception& ex, Mona::Client& client, Mona::DataReader& parameters, Mona::DataWriter& response);
+	virtual App::Client* newClient(Mona::Exception& ex, Mona::Client& client, Mona::DataReader& parameters, Mona::DataWriter& response);
 	virtual void closeClients();
+	virtual void deleteClient(App::Client*);
 
 	virtual void manage() {}
 private:
-	std::string _target;
 	std::string _name;
-	std::list<SRTOut::Client*> _clients;
+	SRTOut::Client* _client;
 };

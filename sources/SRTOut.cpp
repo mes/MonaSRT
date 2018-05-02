@@ -310,19 +310,22 @@ private:
 		}
 };
 
-SRTOut::SRTOut(const Parameters& configs): App(configs)
+SRTOut::SRTOut(const Parameters& configs): App(configs), _client(nullptr)
 {
-	_target.assign(configs.getString("srt.target", "localhost:4900"));
 	setString("State", "Created");
 }
 
 SRTOut::~SRTOut() {
 }
 
-SRTOut::Client::Client(Mona::Client& client, const string& host) : App::Client(client), _first(true), _pPublication(NULL), _videoCodecSent(false), _audioCodecSent(false),
+SRTOut::Client::Client(Mona::Client& client, const Mona::Parameters& configs)
+: App::Client(client), _first(true), _pPublication(NULL),
+	_videoCodecSent(false), _audioCodecSent(false),
 	_srtPimpl(new SRTOut::Client::OpenSrtPIMPL()) {
 
 	FATAL_CHECK(_srtPimpl.get() != nullptr);
+
+	const std::string &host = configs.getString("outputUrl");
 	_srtPimpl->Open(host);
 
 	_onAudio = [this](UInt16 track, const Media::Audio::Tag& tag, const Packet& packet) {
@@ -428,6 +431,24 @@ void SRTOut::Client::onUnpublish(Publication& publication) {
 	resetSRT();
 }
 
+bool SRTOut::Client::onInvocation(Mona::Exception& ex, const std::string& name, Mona::DataReader& arguments, Mona::UInt8 responseType) {
+	const ::std::string &method = client.properties().getString("type");
+	DEBUG("Client: ", name," call from ",client.protocol," to ",
+		client.path.empty() ? "/" : client.path, " type ", responseType,
+		" method ", method.empty() ? "UNKNOWN" : method)
+	
+	return true;
+}
+
+bool SRTOut::Client::onHTTPRequest(const std::string& method,
+		const std::string& name, const std::string& body, std::string& response) {
+	DEBUG("SRTOut::Client::onHTTPRequest");
+
+	response = "{ \"State\": \"Connecting\" }";
+
+	return true;
+}
+
 void SRTOut::Client::resetSRT() {
 
 	if (_pPublication) {
@@ -460,18 +481,48 @@ bool SRTOut::Client::writePayload(UInt16 context, shared_ptr<Buffer>& pBuffer) {
 	return (res == (int)pBuffer->size());
 }
 
-SRTOut::Client* SRTOut::newClient(Mona::Exception& ex, Mona::Client& client, Mona::DataReader& parameters, Mona::DataWriter& response) {
+App::Client* SRTOut::newClient(Mona::Exception& ex, Mona::Client& client, Mona::DataReader& parameters, Mona::DataWriter& response) {
 	DEBUG("SRTOut::newClient for path ", client.path.empty() ? "/" : client.path);
 
-	auto it = _clients.insert(_clients.end(), new Client(client, _target));
-	return *it;
+	// NOTE: We don't really want more than one client in our use case.
+	//       The list is there for future expansion.
+	if (_client != nullptr) {
+		ERROR("SRTOut already has a client!")
+		return nullptr;
+	}
+
+	_client = new Client(client, *this);
+
+	return _client;
 }
 
 void SRTOut::closeClients() {
 	DEBUG("SRTOut::closeClients");
-	
-	for (auto &it : _clients) {
-		it->client.writer().close();
+
+	SRTOut::Client* p = _client;
+	if (p)
+		p->client.writer().close();
+}
+
+void SRTOut::deleteClient(App::Client* pClient)
+{
+	// WARNING: the can be called from closeClients via disconnect callback
+	delete _client;
+	_client = nullptr;
+}
+
+
+bool SRTOut::onHTTPRequest(const std::string& method,
+		const std::string& name, const std::string& body, std::string& response) {
+	DEBUG("SRTOut::onHTTPRequest");
+
+	if (method != "GET")
+		return false;
+
+	if (_client == nullptr) {
+		response = "{ \"State\": \"NotConnected\" }";
+		return true;
 	}
-	_clients.clear();
+
+	return _client->onHTTPRequest(method, name, body, response);
 }

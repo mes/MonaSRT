@@ -44,11 +44,13 @@ struct App : Parameters, virtual Object {
 
 
 	virtual SocketAddress& onHandshake(const std::string& protocol, const SocketAddress& address, const Parameters& properties, SocketAddress& redirection) { return redirection; }
+	virtual bool onHTTPRequest(const std::string& method, const std::string& name, const std::string& body, std::string& response) { return false; }
 
 	virtual App::Client* newClient(Exception& ex, Mona::Client& client, DataReader& parameters, DataWriter& response) {
 		return NULL;
 	}
 	virtual void closeClients() {}
+	virtual void deleteClient(App::Client*) {}
 
 	virtual void manage() {}
 };

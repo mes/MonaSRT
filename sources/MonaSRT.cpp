@@ -31,39 +31,39 @@
 namespace {
 struct url
 {
-	url(const ::std::string& url_s)
+	url(const std::string& url_s)
 	{
-		const ::std::string prot_end("://");
-		::std::string::const_iterator prot_i = ::std::search(
+		const std::string prot_end("://");
+		std::string::const_iterator prot_i = std::search(
 			url_s.begin(), url_s.end(),
 			prot_end.begin(), prot_end.end());
-		_protocol.reserve(::std::distance(url_s.begin(), prot_i));
-		::std::transform(url_s.begin(), prot_i,
-			::std::back_inserter(_protocol),
+		_protocol.reserve(std::distance(url_s.begin(), prot_i));
+		std::transform(url_s.begin(), prot_i,
+			std::back_inserter(_protocol),
 			::tolower);
 		if(prot_i == url_s.end())
 			return;
-		::std::advance(prot_i, prot_end.length());
-		::std::string::const_iterator path_i = ::std::find(
+		std::advance(prot_i, prot_end.length());
+		std::string::const_iterator path_i = std::find(
 			prot_i, url_s.end(), '/');
-		_host.reserve(::std::distance(prot_i, path_i));
-		::std::transform(prot_i, path_i,
-			::std::back_inserter(_host),
+		_host.reserve(std::distance(prot_i, path_i));
+		std::transform(prot_i, path_i,
+			std::back_inserter(_host),
 			::tolower);
-		::std::string::const_iterator query_i = ::std::find(
+		std::string::const_iterator query_i = std::find(
 			path_i, url_s.end(), '?');
 		_path.assign(path_i, query_i);
-		::std::string::const_iterator app_i = ::std::find(
+		std::string::const_iterator app_i = std::find(
 			std::next(path_i, 1), url_s.end(), '/');
-		_host.reserve(::std::distance(path_i, app_i));
-		::std::transform(path_i, app_i,
-			::std::back_inserter(_app),
+		_host.reserve(std::distance(path_i, app_i));
+		std::transform(path_i, app_i,
+			std::back_inserter(_app),
 			::tolower);
 		if( query_i != url_s.end() )
 			++query_i;
 		_query.assign(query_i, url_s.end());
 	}
-	::std::string _protocol, _host, _app, _path, _query;
+	std::string _protocol, _host, _app, _path, _query;
 };
 } //anonymous
 
@@ -71,7 +71,7 @@ using namespace std;
 
 namespace Mona {
 
-bool SRTOpenParams::SetFromURL(const ::std::string& url)
+bool SRTOpenParams::SetFromURL(const std::string& url)
 {
 	return true;
 }
@@ -93,17 +93,19 @@ void MonaSRT::onStart() {
 
 void MonaSRT::manage() {
 
+	std::lock_guard<std::mutex> lock(_appsMutex);
 	// manage application!
 	for (auto& it : _appsByName)
 		it.second->manage();
 }
 
 void MonaSRT::onStop() {
-	
+	std::lock_guard<std::mutex> lock(_appsMutex);
 	// delete applications
 	for (auto& it : _appsByName)
 		delete it.second;
 	_appsByName.clear();
+	_appsById.clear();
 
 	if (_srtIn) {
 		delete _srtIn;
@@ -121,6 +123,7 @@ SocketAddress& MonaSRT::onHandshake(const string& path, const string& protocol, 
 	if (!String::ICompare(protocol, "HTTP")/* && !String::ICompare(path, "/srt")*/)
 		return redirection;
 
+	std::lock_guard<std::mutex> lock(_appsMutex);
 	const auto& it(_appsByName.find(path));
 	return it == _appsByName.end() ? redirection : it->second->onHandshake(protocol, address, properties, redirection);
 }
@@ -131,6 +134,7 @@ void MonaSRT::onConnection(Exception& ex, Client& client, DataReader& parameters
 	if (!String::ICompare(client.protocol, "HTTP"))
 		return;
 
+	std::lock_guard<std::mutex> lock(_appsMutex);
 	const auto& it(_appsByName.find(client.path));
 	if (it == _appsByName.end())
 		return;
@@ -140,7 +144,12 @@ void MonaSRT::onConnection(Exception& ex, Client& client, DataReader& parameters
 void MonaSRT::onDisconnection(Client& client) {
 	DEBUG(client.protocol, " ", client.address, " disconnects from ", client.path.empty() ? "/" : client.path);
 	if (client.hasCustomData()) {
-		delete client.getCustomData<App::Client>();
+		std::lock_guard<std::mutex> lock(_appsMutex);
+		const auto& it(_appsByName.find(client.path));
+		if (it != _appsByName.end())
+			it->second->deleteClient(client.getCustomData<App::Client>());
+		else
+			delete client.getCustomData<App::Client>();
 		client.setCustomData<App::Client>(NULL);
 	}
 }
@@ -150,10 +159,10 @@ void MonaSRT::onAddressChanged(Client& client, const SocketAddress& oldAddress) 
 		client.getCustomData<App::Client>()->onAddressChanged(oldAddress);
 }
 
-static void makeJsonResponse(::std::string& response,
-		const ::std::string& status, const ::std::string& msg = ::std::string())
+static void makeJsonResponse(std::string& response,
+		const std::string& status, const std::string& msg = std::string())
 {
-	::std::map<::std::string, ::std::string> m;
+	std::map<std::string, std::string> m;
 
 	m["Status"] = status;
 	if (!msg.empty()) {
@@ -165,48 +174,64 @@ static void makeJsonResponse(::std::string& response,
 
 bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, DataReader& arguments, UInt8 responseType) {
 	// on client message, returns "false" if "name" message is unknown
-	const ::std::string &method = client.properties().getString("type");
+	const std::string &method = client.properties().getString("type");
 	DEBUG(name," call from ",client.protocol," to ",
 		client.path.empty() ? "/" : client.path, " type ", responseType,
 		" method ", method.empty() ? "UNKNOWN" : method)
 
 	HTTPWriter * phttpWriter = dynamic_cast<HTTPWriter*>(&client.writer());
 	if (phttpWriter != nullptr) {
-		::std::string response, msg;
+		std::string response, msg;
+		const std::string body((const char*)arguments->data(),
+			arguments->size());
+
 		if (method == "GET") {
-			if (name == "channels") {
-				std::map<std::string, Mona::Parameters&> channels;
-				for (auto it = _appsById.begin(); it != _appsById.end(); it++) {
-					channels.emplace(it->first, *it->second);
-				}
-				const json11::Json json = json11::Json::object({
-					{ "channels", channels }
-				});
-				json.dump(response);
-			} else if (name == "status") {
-				Exception ex;
-				::std::vector<Mona::IPAddress> ips = Mona::IPAddress::Locals(ex);
-				::std::vector<Mona::IPAddress>::const_iterator it = ips.begin();
-				while (it < ips.end()) {
-					if (it->family() != Mona::IPAddress::IPv4
-							|| it->isLoopback() || it->isLinkLocal()) {
-						it = ips.erase(it);
-					} else {
-						it++;
+			std::vector<std::string> parts;
+			Mona::String::Split(client.path, "/", parts,
+				SPLIT_TRIM | SPLIT_IGNORE_EMPTY);
+			if (parts.size() == 0) {
+				if (name == "channels") {
+					std::map<std::string, Mona::Parameters&> channels;
+					for (auto it = _appsById.begin(); it != _appsById.end(); it++) {
+						channels.emplace(it->first, *it->second);
 					}
+					const json11::Json json = json11::Json::object({
+						{ "channels", channels }
+					});
+					json.dump(response);
+				} else if (name == "status") {
+					Exception ex;
+					std::vector<Mona::IPAddress> ips = Mona::IPAddress::Locals(ex);
+					std::vector<Mona::IPAddress>::const_iterator it = ips.begin();
+					while (it < ips.end()) {
+						if (it->family() != Mona::IPAddress::IPv4
+								|| it->isLoopback() || it->isLinkLocal()) {
+							it = ips.erase(it);
+						} else {
+							it++;
+						}
+					}
+					const json11::Json json = json11::Json::object({
+						{ "version", MONASRT_VERSION_STRING },
+						{ "hostIPv4", ips }
+					});
+					json.dump(response);
 				}
-				const json11::Json json = json11::Json::object({
-					{ "version", MONASRT_VERSION_STRING },
-					{ "hostIPv4", ips }
-				});
-				json.dump(response);
+			} else if (parts.size() == 2 && parts[0] == "channels") {
+				const std::string &channelId = parts[1];
+				auto chanIt = _appsById.find(channelId);
+				if (chanIt != _appsById.end()) {
+					App* app = chanIt->second;
+					if (!app->onHTTPRequest(method, name, body, response))
+						return false;
+				}
 			}
 		} else if (method == "POST" && !client.path.empty() && !name.empty()) {
-			::std::vector<::std::string> parts;
+			std::vector<std::string> parts;
 			Mona::String::Split(client.path, "/", parts,
 				SPLIT_TRIM | SPLIT_IGNORE_EMPTY);
 			if (parts.size() == 2 && parts[0] == "channels") {
-				const ::std::string &channelId = parts[1];
+				const std::string &channelId = parts[1];
 				auto chanIt = _appsById.find(channelId);
 				if (name == "start") {
 					if (chanIt != _appsById.end()) {
@@ -217,10 +242,8 @@ bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, Da
 					}
 					DEBUG("Start ", channelId, " channel");
 
-					::std::string err;
-					json11::Json json = json11::Json::parse(
-						::std::string((const char*)arguments->data(),
-						arguments->size()), err);
+					std::string err;
+					json11::Json json = json11::Json::parse(body, err);
 
 					if (!err.empty()) {
 						msg = "Error parsing JSON command: " + err;
@@ -229,22 +252,8 @@ bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, Da
 						goto httpout;
 					}
 
-					Mona::Parameters params;
-					const json11::Json::object &object = json.object_items();
-					for (auto &it : object) {
-						if (it.second.is_string()) {
-							const ::std::string& key = it.first;
-							const ::std::string& val = it.second.string_value();
-
-							if ((true)) {
-								DEBUG(key, " = ", val);
-							}
-							params.setString(key, val);
-						}
-					}
-
 					std::string appName;
-					const ::std::string& inputUrl = json["inputUrl"].string_value();
+					const std::string& inputUrl = json["inputUrl"].string_value();
 					::url inurl(inputUrl);
 					if (inurl._protocol == "rtmp" || inurl._protocol == "rtmps") {
 						if (inurl._app.empty()) {
@@ -257,18 +266,47 @@ bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, Da
 					} else if (inurl._protocol == "udp") {
 						appName = channelId;
 						// TODO: Start UDP stream
+					} else {
+							msg = "Unsupported input protocol " + inurl._protocol;
+							ERROR(msg);
+							makeJsonResponse(response, "Fail", msg);
+							goto httpout;
 					}
 
+					const std::string& outputUrl = json["outputUrl"].string_value();
+					::url outurl(outputUrl);
+					if (outurl._protocol != "srt") {
+							msg = "Unsupported output protocol " + inurl._protocol;
+							ERROR(msg);
+							makeJsonResponse(response, "Fail", msg);
+							goto httpout;
+					}
+					
 					if (_appsByName.find(appName) != _appsByName.end()) {
 						msg = "Existing applicaion";
 						ERROR(msg);
 						makeJsonResponse(response, "Fail", msg);
 						goto httpout;
 					}
+
+					Mona::Parameters params;
+					const json11::Json::object &object = json.object_items();
+					for (auto &it : object) {
+						if (it.second.is_string()) {
+							const std::string& key = it.first;
+							const std::string& val = it.second.string_value();
+
+							if ((true)) {
+								DEBUG(key, " = ", val);
+							}
+							params.setString(key, val);
+						}
+					}
 					SRTOut * app = new SRTOut(params);
+					_appsMutex.lock();
 					_appsByName[appName] = app;
 					_appsById[channelId] = app;
-
+					_appsMutex.unlock();
 					msg = "Channel " + channelId + " started";
 					makeJsonResponse(response, "Success", msg);
 				} else if (name == "stop") {
@@ -278,6 +316,7 @@ bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, Da
 
 						App* app = abiIt->second;
 						app->closeClients();
+						_appsMutex.lock();
 						_appsById.erase(abiIt);
 						for (auto abnIt = _appsByName.begin();
 								abnIt != _appsByName.end(); abnIt++) {
@@ -286,17 +325,13 @@ bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, Da
 								break;
 							}
 						}
+						_appsMutex.unlock();
 						delete app;
 						makeJsonResponse(response, "Success");
 					} else {
 						msg = "Channel " + channelId + " does not exist";
 						ERROR(msg);
 						makeJsonResponse(response, "Fail", msg);
-					}
-				} else if (chanIt != _appsById.end()) {
-					if (!client.hasCustomData()) {
-						// that's all we know...
-						response = "{ \"State\": \"Created\" }";
 					}
 				}
 			}
@@ -311,9 +346,7 @@ httpout:
 
 			return true;
 		}
-	}
-
-	if (client.hasCustomData())
+	} else if (client.hasCustomData())
 		return client.getCustomData<App::Client>()->onInvocation(ex, name, arguments,responseType);
 
 	return false;

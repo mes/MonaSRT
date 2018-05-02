@@ -103,6 +103,7 @@ protected:
 	typedef std::map<std::string,App*> AppsMapT;
 	AppsMapT	_appsByName;
 	AppsMapT	_appsById;
+	std::mutex	_appsMutex;
 
 	SRTIn*						_srtIn;
 	std::string					_wwwPath;	
