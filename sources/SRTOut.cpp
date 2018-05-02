@@ -28,6 +28,8 @@
 #include "Mona/SocketAddress.h"
 #include "Mona/Thread.h"
 
+#include <sstream>
+
 using namespace Mona;
 using namespace std;
 
@@ -40,6 +42,7 @@ class SRTOut::Client::OpenSrtPIMPL : private Thread {
 		bool _started;
 		string _host;
 		std::mutex _mutex;
+		std::string _errorDetail;
 	public:
 		OpenSrtPIMPL() :
 			_socket(::SRT_INVALID_SOCK), _started(false), Thread("SRTOut") {
@@ -301,6 +304,66 @@ class SRTOut::Client::OpenSrtPIMPL : private Thread {
 			return true;
 		}
 
+		const char* GetSRTStateString()
+		{
+			if (!_errorDetail.empty())
+				return "InError";
+			if (srt_getsockstate(_socket) == SRTS_CONNECTED)
+				return "Connected";
+
+			return "Connecting";
+		}
+
+		void GetStatsJson(std::string& response) {
+			std::ostringstream ostr;
+	
+			if (!_errorDetail.empty()) {
+				ostr \
+					<< "{\"State\":\"InError\"," \
+					<< "\"ErrorDetail\"= \"" << _errorDetail \
+					<< "\"}" << endl;
+				return;
+			}
+			
+			ostr << "{";
+			SRT_TRACEBSTATS mon;
+			memset(&mon, 0, sizeof(mon));
+			if (!srt_bstats(_socket, &mon, false)) {
+				ostr << "\"time\":" << mon.msTimeStamp << ",";
+				ostr << "\"window\":{";
+				ostr << "\"flow\":" << mon.pktFlowWindow << ",";
+				ostr << "\"congestion\":" << mon.pktCongestionWindow << ",";
+				ostr << "\"flight\":" << mon.pktFlightSize;
+				ostr << "},";
+				ostr << "\"link\":{";
+				ostr << "\"rtt\":" << mon.msRTT << ",";
+				ostr << "\"bandwidth\":" << mon.mbpsBandwidth << ",";
+				ostr << "\"maxBandwidth\":" << mon.mbpsMaxBW;
+				ostr << "},";
+				ostr << "\"send\":{";
+				ostr << "\"packets\":" << mon.pktSent << ",";
+				ostr << "\"packetsLost\":" << mon.pktSndLoss << ",";
+				ostr << "\"packetsDropped\":" << mon.pktSndDrop << ",";
+				ostr << "\"packetsRetransmitted\":" << mon.pktRetrans << ",";
+				ostr << "\"bytes\":" << mon.byteSent << ",";
+				ostr << "\"bytesDropped\":" << mon.byteSndDrop << ",";
+				ostr << "\"mbitRate\":" << mon.mbpsSendRate;
+				ostr << "},";
+				ostr << "\"recv\": {";
+				ostr << "\"packets\":" << mon.pktRecv << ",";
+				ostr << "\"packetsLost\":" << mon.pktRcvLoss << ",";
+				ostr << "\"packetsDopped\":" << mon.pktRcvDrop << ",";
+				ostr << "\"packetsRetransmitted\":" << mon.pktRcvRetrans << ",";
+				ostr << "\"packetsBelated\":" << mon.pktRcvBelated << ",";
+				ostr << "\"bytes\":" << mon.byteRecv << ",";
+				ostr << "\"bytesLost\":" << mon.byteRcvLoss << ",";
+				ostr << "\"bytesDropped\":" << mon.byteRcvDrop << ",";
+				ostr << "\"mbitRate\":" << mon.mbpsRecvRate;
+				ostr << "},";
+			}
+			ostr << "\"State\":\"" << GetSRTStateString() << "\"}" << endl;
+			response = ostr.str();
+		}
 private:
 
 		static void logCallback(void* opaque, int level, const char* file,
@@ -312,7 +375,6 @@ private:
 
 SRTOut::SRTOut(const Parameters& configs): App(configs), _client(nullptr)
 {
-	setString("State", "Created");
 }
 
 SRTOut::~SRTOut() {
@@ -325,8 +387,8 @@ SRTOut::Client::Client(Mona::Client& client, const Mona::Parameters& configs)
 
 	FATAL_CHECK(_srtPimpl.get() != nullptr);
 
-	const std::string &host = configs.getString("outputUrl");
-	_srtPimpl->Open(host);
+	const std::string &url = configs.getString("outputUrl");
+	_srtPimpl->Open(url);
 
 	_onAudio = [this](UInt16 track, const Media::Audio::Tag& tag, const Packet& packet) {
 		shared<Buffer> pBuffer;
@@ -444,9 +506,16 @@ bool SRTOut::Client::onHTTPRequest(const std::string& method,
 		const std::string& name, const std::string& body, std::string& response) {
 	DEBUG("SRTOut::Client::onHTTPRequest");
 
-	response = "{ \"State\": \"Connecting\" }";
+	if (method != "GET")
+		return false;
 
-	return true;
+	if (name == "stats") {
+		_srtPimpl->GetStatsJson(response);
+	} else if (name == "status") {
+		response = "{ \"State\": \"Connecting\" }";
+	}
+
+	return !response.empty();
 }
 
 void SRTOut::Client::resetSRT() {
@@ -504,13 +573,11 @@ void SRTOut::closeClients() {
 		p->client.writer().close();
 }
 
-void SRTOut::deleteClient(App::Client* pClient)
-{
+void SRTOut::deleteClient(App::Client* pClient) {
 	// WARNING: the can be called from closeClients via disconnect callback
 	delete _client;
 	_client = nullptr;
 }
-
 
 bool SRTOut::onHTTPRequest(const std::string& method,
 		const std::string& name, const std::string& body, std::string& response) {
