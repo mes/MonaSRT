@@ -71,11 +71,6 @@ using namespace std;
 
 namespace Mona {
 
-bool SRTOpenParams::SetFromURL(const std::string& url)
-{
-	return true;
-}
-
 //// External Publish ////
 
 
