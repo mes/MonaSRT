@@ -230,6 +230,7 @@
     <ClCompile Include="sources\main.cpp" />
     <ClCompile Include="sources\SRTOut.cpp" />
     <ClCompile Include="sources\SRTIn.cpp" />
+    <ClCompile Include="sources\json11.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MonaBase\MonaBase.vcxproj">
@@ -246,6 +247,7 @@
     <ClInclude Include="include\MonaSRT.h" />
     <ClInclude Include="include\SRTOut.h" />
     <ClInclude Include="include\SRTIn.h" />
+    <ClInclude Include="sources\json11.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
