@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <iterator>
 
 #include "SRTIn.h"
 
