@@ -339,9 +339,10 @@ httpout:
 			binaryWriter.clear();
 			binaryWriter.write(response);
 			binaryWriter.write("\r\n");
-
-			return true;
+		} else {
+			client.writer().close();
 		}
+		return true;
 	} else if (client.hasCustomData())
 		return client.getCustomData<App::Client>()->onInvocation(ex, name, arguments,responseType);
 

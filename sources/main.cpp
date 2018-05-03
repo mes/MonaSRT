@@ -18,8 +18,8 @@
 #include "MonaSRT.h"
 #include "MonaSRTVersion.h"
 
-const int defaultHTTPRangeStart = 1020;
-const int defaultHTTPRangeEnd = defaultHTTPRangeStart + 10;
+const int defaultHTTPRangeStart = 4900;
+const int defaultHTTPRangeEnd = defaultHTTPRangeStart + 20;
 
 using namespace std;
 using namespace Mona;
@@ -67,7 +67,8 @@ struct ServerApp : ServerApplication  {
 
 		setBoolean("HTTP", true);
 		setNumber("HTTP.port", port);
-		
+		setString("HTTP.host", "127.0.0.1");
+
 		// starts the server
 		MonaSRT server(file().parent()+"www", getNumber<UInt32>("cores"), terminateSignal);
 
