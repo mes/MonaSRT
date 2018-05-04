@@ -24,23 +24,6 @@ struct SRTIn;
 struct SRTOut;
 namespace Mona {
 
-
-
-// struct RouteDesc {
-// 	::std::string _name;
-// 
-// 	enum typeT {
-// 		TYPE_NOTSET       = 0,
-// 		TYPE_SRTTS        = 1,
-// 		TYPE_UDPTS        = 2,
-// 		TYPE_RTMPSERVER   = 3
-// 	};
-// 
-// 	typeT _ingressType;
-// 	::std::string ingressURL;
-// 	::std::string egressURL;
-// };
-
 struct MonaSRT : Server {
 	MonaSRT(const std::string& wwwPath, UInt16 cores, TerminateSignal& terminateSignal) :
 		Server(cores), _wwwPath(wwwPath), _terminateSignal(terminateSignal), _srtIn(nullptr) { }
@@ -77,6 +60,9 @@ protected:
 	typedef std::map<std::string,App*> AppsMapT;
 	AppsMapT	_appsByName;
 	AppsMapT	_appsById;
+	std::map<std::string, Media::Stream*> _streamsById;
+	std::map<std::string, Mona::Client*> _clientById;
+	std::map<std::string, Mona::Publication*> _publicationById;
 	std::mutex	_appsMutex;
 
 	SRTIn*						_srtIn;

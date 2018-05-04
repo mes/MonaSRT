@@ -26,6 +26,7 @@
 #include "Mona/MapWriter.h"
 #include "Mona/MapReader.h"
 #include "Mona/HTTP/HTTPWriter.h"
+#include "Mona/Media.h"
 
 #include "json11.hpp"
 
@@ -72,19 +73,41 @@ using namespace std;
 
 namespace Mona {
 
+struct UDPClient : Client, virtual Object {
+	UDPClient(ServerAPI& api, const char* protocol)
+		:Client(protocol), _api(api) {
+		((Time&)connection).update();
+		(Time&)disconnection = 0;
+	}
+	~UDPClient() {
+	}
+
+	const Parameters& properties() const {
+		return _properties;
+	}
+
+	virtual Writer& writer() {
+		return Writer::Null();
+	}
+
+	Time	recvTime() const { return Time(); }
+	UInt64	recvByteRate() const { return 0; }
+	double	recvLostRate() const { return 0; }
+	
+	Time	sendTime() const { return Time(); }
+	UInt64	sendByteRate() const { return 0; }
+	double	sendLostRate() const { return 0; }
+
+	UInt64	queueing() const { return 0; }
+private:
+	Parameters _properties;
+	ServerAPI& _api;
+};
+
 //// External Publish ////
-
-
 
 //// Server Events /////
 void MonaSRT::onStart() {
-#if 0
-	_appsByName["/srt"] = new SRTOut(*this);
-	if (getBoolean<false>("SRT")) {
-		_srtIn = new SRTIn(*this, *this);
-		_srtIn->load();
-	}
-#endif
 }
 
 void MonaSRT::manage() {
@@ -93,6 +116,9 @@ void MonaSRT::manage() {
 	// manage application!
 	for (auto& it : _appsByName)
 		it.second->manage();
+
+	for (auto& it : _streamsById)
+		it.second->start();
 }
 
 void MonaSRT::onStop() {
@@ -134,7 +160,7 @@ void MonaSRT::onConnection(Exception& ex, Client& client, DataReader& parameters
 	const auto& it(_appsByName.find(client.path));
 	if (it == _appsByName.end())
 		return;
-	client.setCustomData<App::Client>(it->second->newClient(ex,client,parameters,response));
+	client.setCustomData<App::Client>(it->second->newClient(ex,client));
 }
 
 void MonaSRT::onDisconnection(Client& client) {
@@ -223,6 +249,7 @@ bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, Da
 				}
 			}
 		} else if (method == "POST" && !client.path.empty() && !name.empty()) {
+			Mona::Media::Stream* pStream = nullptr;
 			std::vector<std::string> parts;
 			Mona::String::Split(client.path, "/", parts,
 				SPLIT_TRIM | SPLIT_IGNORE_EMPTY);
@@ -261,7 +288,16 @@ bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, Da
 						appName = inurl._app;
 					} else if (inurl._protocol == "udp") {
 						appName = channelId;
-						// TODO: Start UDP stream
+						std::string description(inurl._host + " udp/ts");
+						pStream = Mona::Media::Stream::New(
+							ex = nullptr, description.c_str(),
+							timer, ioFile, ioSocket, nullptr);
+						if (pStream == nullptr) {
+							msg = "UDP Stream creation failed!";
+							ERROR(msg);
+							makeJsonResponse(response, "Fail", msg);
+							goto httpout;
+						}
 					} else {
 							msg = "Unsupported input protocol " + inurl._protocol;
 							ERROR(msg);
@@ -303,6 +339,32 @@ bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, Da
 					_appsByName[appName] = app;
 					_appsById[channelId] = app;
 					_appsMutex.unlock();
+
+					if (pStream != nullptr) {
+						UDPClient * pClient = new UDPClient(*this, "UDP");
+						pClient->setCustomData<App::Client>(
+							app->newClient(ex, *pClient));
+
+						Mona::Publication* pPublication = publish(
+							ex=nullptr, *pClient, appName);
+						if (pPublication == nullptr) {
+							delete pClient;
+							delete pStream;
+
+							msg = "Failed to publish UDP stream";
+							ERROR(msg);
+							makeJsonResponse(response, "Fail", msg);
+							goto httpout;
+						}
+						pStream->start(*pPublication);
+
+						_appsMutex.lock();
+						_streamsById[channelId] = pStream;
+						_clientById[channelId] = pClient;
+						_publicationById[channelId] = pPublication;
+						_appsMutex.unlock();
+					}
+
 					msg = "Channel " + channelId + " started";
 					makeJsonResponse(response, "Success", msg);
 				} else if (name == "stop") {
@@ -321,6 +383,27 @@ bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, Da
 								break;
 							}
 						}
+						auto sbiId = _streamsById.find(channelId);
+						if (sbiId != _streamsById.end()) {
+							sbiId->second->stop();
+							delete sbiId->second;
+							_streamsById.erase(sbiId);
+						}
+						
+						auto cbiId = _clientById.find(channelId);
+						if (cbiId != _clientById.end()) {
+							delete cbiId->second->getCustomData<App::Client>();
+							delete cbiId->second;
+							_clientById.erase(cbiId);
+						}
+
+						auto pbiId = _publicationById.find(channelId);
+						if (pbiId != _publicationById.end()) {
+							pbiId->second->stop();
+							unpublish(*pbiId->second);
+							_publicationById.erase(pbiId);
+						}
+
 						_appsMutex.unlock();
 						delete app;
 						makeJsonResponse(response, "Success");
@@ -387,7 +470,6 @@ void MonaSRT::onUnpublish(Publication& publication, Client* pClient) {
 
 bool MonaSRT::onSubscribe(Exception& ex, const Subscription& subscription, const Publication& publication, Client* pClient) {
 	if (pClient) {
-
 		INFO(pClient->protocol, " ", pClient->address, " subscribe to ", publication.name());
 		if (pClient->hasCustomData())
 			return pClient->getCustomData<App::Client>()->onSubscribe(ex, subscription, publication);

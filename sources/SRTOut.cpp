@@ -623,13 +623,14 @@ SRTOut::Client::Client(Mona::Client& client, const Mona::Parameters& configs)
 			return;
 	};
 	_onEnd = [this]() {
+		DEBUG("Publication ended")
 		resetSRT();
 	};
-	INFO("A new publish client is connecting from ", client.address);
+	INFO("A new publish client is connecting");
 }
 
 SRTOut::Client::~Client() {
-	INFO("Client from ", client.address, " is disconnecting...")
+	INFO("Client is disconnecting...")
 
 	_srtPimpl->Close();
 
@@ -637,7 +638,7 @@ SRTOut::Client::~Client() {
 }
 
 bool SRTOut::Client::onPublish(Exception& ex, Publication& publication) {
-	INFO("Client from ", client.address, " is trying to publish ", publication.name())
+	INFO("Client from is trying to publish ", publication.name())
 
 	if (_pPublication) {
 		WARN("Client is already publishing, request ignored")
@@ -647,24 +648,21 @@ bool SRTOut::Client::onPublish(Exception& ex, Publication& publication) {
 	// Init parameters
 	publication.onAudio = _onAudio;
 	publication.onVideo = _onVideo;
-	publication.onEnd = _onEnd;
+	if ((false)) {
+		publication.onEnd = _onEnd;
+	}
 	_pPublication = &publication;
 
 	return true;
 }
 
 void SRTOut::Client::onUnpublish(Publication& publication) {
-	INFO("Client from ", client.address, " has closed publication ", publication.name(), ", stopping the injection...")
+	INFO("Client has closed publication ", publication.name(), ", stopping the injection...")
 
 	resetSRT();
 }
 
 bool SRTOut::Client::onInvocation(Mona::Exception& ex, const std::string& name, Mona::DataReader& arguments, Mona::UInt8 responseType) {
-	const ::std::string &method = client.properties().getString("type");
-	DEBUG("Client: ", name," call from ",client.protocol," to ",
-		client.path.empty() ? "/" : client.path, " type ", responseType,
-		" method ", method.empty() ? "UNKNOWN" : method)
-	
 	return true;
 }
 
@@ -716,9 +714,7 @@ bool SRTOut::Client::writePayload(UInt16 context, shared_ptr<Buffer>& pBuffer) {
 	return (res == (int)pBuffer->size());
 }
 
-App::Client* SRTOut::newClient(Mona::Exception& ex, Mona::Client& client, Mona::DataReader& parameters, Mona::DataWriter& response) {
-	DEBUG("SRTOut::newClient for path ", client.path.empty() ? "/" : client.path);
-
+App::Client* SRTOut::newClient(Mona::Exception& ex, Mona::Client& client) {
 	// NOTE: We don't really want more than one client in our use case.
 	//       The list is there for future expansion.
 	if (_client != nullptr) {

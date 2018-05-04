@@ -87,7 +87,7 @@ struct SRTOut : virtual Mona::App {
 	virtual void onHandshake(const std::string& protocol, const Mona::SocketAddress& address, const Mona::Parameters& properties, std::set<Mona::SocketAddress>& addresses) {}
 	virtual bool onHTTPRequest(const std::string& method, const std::string& name, const std::string& body, std::string& response);
 
-	virtual App::Client* newClient(Mona::Exception& ex, Mona::Client& client, Mona::DataReader& parameters, Mona::DataWriter& response);
+	virtual App::Client* newClient(Mona::Exception& ex, Mona::Client& client);
 	virtual void closeClients();
 	virtual void deleteClient(App::Client*);
 
