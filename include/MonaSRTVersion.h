@@ -1,7 +1,7 @@
 #include "Mona/Mona.h"
 #include "Version.h"
 
-#define MONASRT_VERSION 0.4
+#define MONASRT_VERSION 0.5
 
 #define MONASRT_VERSION_STRING \
 	"1." STRINGIZE(MONA_VERSION) \
