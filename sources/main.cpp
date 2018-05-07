@@ -43,7 +43,7 @@ struct ServerApp : ServerApplication  {
 	int main(TerminateSignal& terminateSignal) {
 
 		// find a we can bind to in the range
-		unique<Socket> socket(new Socket(Socket::TYPE_STREAM));
+		Mona::unique<Socket> socket(new Socket(Socket::TYPE_STREAM));
 		FATAL_CHECK(socket.get() != nullptr);
 		
 		UInt16 port = 0;
@@ -57,7 +57,7 @@ struct ServerApp : ServerApplication  {
 				break;
 			}
 		}
-		socket.release();
+		socket.reset();
 
 		if (!port) {
 			ERROR("Failed to find port for control channel (",
