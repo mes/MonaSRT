@@ -1,6 +1,7 @@
 # MonaSRT
 
-[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/9dk5rwv0aiwr2n19?svg=true)](https://ci.appveyor.com/project/thomasjammet/monasrt/branch/master)
+[![Build status](https://ci.appveyor.com/api/projects/status/2vn80vk7ijmtb9jx/branch/master?svg=true)](https://ci.appveyor.com/project/rndi/monasrt/branch/master)
+[![Build Status](https://travis-ci.org/rndi/MonaSRT.svg?branch=master)](https://travis-ci.org/rndi/MonaSRT)
 
 ## Compilation
 
