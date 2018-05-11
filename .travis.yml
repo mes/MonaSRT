@@ -1,54 +1,53 @@
 language: cpp
 dist: trusty
 sudo: false
-
 addons:
-    apt:
-        sources:
-        - ubuntu-toolchain-r-test
-        packages:
-        - tclsh
-        - pkg-config
-        - cmake
-        - libssl-dev
-        - build-essential
-        - g++-7
-
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - tclsh
+    - pkg-config
+    - cmake
+    - libssl-dev
+    - build-essential
+    - g++-7
 matrix:
-    include:
-        - os: linux
-          env: MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
-        - os: osx
-          osx_image: xcode9.2
-          env: MATRIX_EVAL="CC=clang && CXX=clang++"
-
+  include:
+  - os: linux
+    env: MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+  - os: osx
+    osx_image: xcode9.2
+    env: MATRIX_EVAL="CC=clang && CXX=clang++"
 before_install:
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
-    - eval "${MATRIX_EVAL}"
-    - cd $HOME
-    - git clone https://github.com/MonaSolutions/MonaServer2.git
-    - cd MonaServer2
-    - git checkout 953a24d2e5feae68cef7b9d73a4abf3abf765e20
-    - MONASRT_NAME=`basename $TRAVIS_BUILD_DIR`
-    - mv $TRAVIS_BUILD_DIR $MONASRT_NAME
-    - TRAVIS_BUILD_DIR=$PWD
-    - SRTVER="1.2.3"
-    - wget https://github.com/Haivision/srt/archive/v$SRTVER.tar.gz
-    - tar -xvf v$SRTVER.tar.gz
-
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
+- eval "${MATRIX_EVAL}"
+- cd $HOME
+- git clone https://github.com/MonaSolutions/MonaServer2.git
+- cd MonaServer2
+- git checkout 953a24d2e5feae68cef7b9d73a4abf3abf765e20
+- MONASRT_NAME=`basename $TRAVIS_BUILD_DIR`
+- mv $TRAVIS_BUILD_DIR $MONASRT_NAME
+- TRAVIS_BUILD_DIR=$PWD
+- SRTVER="1.2.3"
+- wget https://github.com/Haivision/srt/archive/v$SRTVER.tar.gz
+- tar -xvf v$SRTVER.tar.gz
 script:
-    - cd srt-$SRTVER
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-        export OPENSSL_ROOT_DIR=$(brew --prefix openssl);
-        export OPENSSL_LIB_DIR=$(brew --prefix openssl)"/lib";
-        export OPENSSL_INCLUDE_DIR=$(brew --prefix openssl)"/include";
-      fi
-    - ./configure --prefix=../$MONASRT_NAME/srt
-    - make && make install
-    - cd ..
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-        export CFLAGS="-I"$(brew --prefix openssl)"/include";
-      fi
-    - make
-    - cd $MONASRT_NAME
-    - make
+- cd srt-$SRTVER
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OPENSSL_ROOT_DIR=$(brew --prefix
+  openssl); export OPENSSL_LIB_DIR=$(brew --prefix openssl)"/lib"; export OPENSSL_INCLUDE_DIR=$(brew
+  --prefix openssl)"/include"; fi
+- "./configure --prefix=../$MONASRT_NAME/srt"
+- make && make install
+- cd ..
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export CFLAGS="-I"$(brew --prefix openssl)"/include";
+  fi
+- make
+- cd $MONASRT_NAME
+- make
+deploy:
+  provider: s3
+  access_key_id: AKIAJVLB22Y62L4YCEMQ
+  secret_access_key:
+    secure: JZ97P0XmavDwrYRY5yU33cPWFzc8pVNVtO+QwsfcVs0wu/B+x4l6bs5zt/HnB3EzTD6tEkOeyOFB+KrLOaW8KSHqEVQR6bfINZAPT5NDYTftp5wBm4SWnJqXN+z5HZ1xXyuT+7/TQBtMKdnr8e2QZCldgR9kpRf9AQyeKBewwDy5+d/jxJsVbMrv7QY1cXNPpjTja5M/g9/axGFQVJpE+kMFVPsoqIvgd2NhpUXGpjY9yuC26b2A8ePENpRfG6MwWUTad5ho9fOQ7/HS4/BtNpsaL/T3lkTaBICABcPniJlwTX5WW8pvPX5ivpGXrPnulkCTVRafc0MN5+CpzFrTU18EgUyFjqVTKkZsK3zmgW4DPZf2gMu622KcGuyPxusqX+pCofIyuSvOhSt104Srqi8X7EKU3LXoCtCHgNUQ7QMQky4pK0tCMgVi0GV1ACrlbI0ZJNxeEoau/OPhk19iYrwsCFuLV+prE98Ep4tcb2RwR96hmvh7kaYm9EzPjgERou73DJ7dqmEiOPABjrnCaimB1sW5cQwr/NsZ2WzTcYLCKKbesFl7st9wvZF4gtDA9VJdSHM11972gF0l3A3O33jy1GR2tGX78BFXD2sFGnfjUOTjSj5GrgYW9m6Mzkf0EHgUYG924UczmHnDntWjIBg7u94SXwmiEiJBfnizQEw=
+  bucket: artifacts.awsdev.haivision.com
