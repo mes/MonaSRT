@@ -10,7 +10,7 @@ rm -fr $INSTALLDIR
 mkdir -p $INSTALLDIR
 
 cp -a MonaSRT RTMPtoSRT
-export DYLD_FALLBACK_FRAMEWORK_PATH=./
+export DYLD_FALLBACK_FRAMEWORK_PATH=./srt/lib/.
 dylibbundler -od -b -x ./RTMPtoSRT -d $INSTALLDIR/libs/ -p @executable_path/libs
 mv RTMPtoSRT $INSTALLDIR
 
