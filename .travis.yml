@@ -49,8 +49,7 @@ before_deploy:
 - BUILD_NAME=RTMPtoSRT-$TRAVIS_OS_NAME-$TRAVIS_COMMIT
 - cd $TRAVIS_BUILD_DIR/$MONASRT_NAME
 - ./makeosxbundle.sh $BUILD_NAME
-- cd $BUILD_NAME
-- tar -cvf $BUILD_NAME.tar.gz
+- tar -cvf $BUILD_NAME.tar.gz $BUILD_NAME/
 deploy:
   provider: s3
   access_key_id: AKIAJVLB22Y62L4YCEMQ
