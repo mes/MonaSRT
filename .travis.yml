@@ -1,54 +1,64 @@
 language: cpp
 dist: trusty
 sudo: false
-
 addons:
-    apt:
-        sources:
-        - ubuntu-toolchain-r-test
-        packages:
-        - tclsh
-        - pkg-config
-        - cmake
-        - libssl-dev
-        - build-essential
-        - g++-7
-
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - tclsh
+    - pkg-config
+    - cmake
+    - libssl-dev
+    - build-essential
+    - g++-7
 matrix:
-    include:
-        - os: linux
-          env: MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
-        - os: osx
-          osx_image: xcode9.2
-          env: MATRIX_EVAL="CC=clang && CXX=clang++"
-
+  include:
+  - os: linux
+    env: MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+  - os: osx
+    osx_image: xcode9.2
+    env: MATRIX_EVAL="CC=clang && CXX=clang++"
 before_install:
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
-    - eval "${MATRIX_EVAL}"
-    - cd $HOME
-    - git clone https://github.com/MonaSolutions/MonaServer2.git
-    - cd MonaServer2
-    - git checkout 953a24d2e5feae68cef7b9d73a4abf3abf765e20
-    - MONASRT_NAME=`basename $TRAVIS_BUILD_DIR`
-    - mv $TRAVIS_BUILD_DIR $MONASRT_NAME
-    - TRAVIS_BUILD_DIR=$PWD
-    - SRTVER="1.2.3"
-    - wget https://github.com/Haivision/srt/archive/v$SRTVER.tar.gz
-    - tar -xvf v$SRTVER.tar.gz
-
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; brew install dylibbundler; fi
+- eval "${MATRIX_EVAL}"
+- cd $HOME
+- git clone https://github.com/MonaSolutions/MonaServer2.git
+- cd MonaServer2
+- git checkout 953a24d2e5feae68cef7b9d73a4abf3abf765e20
+- MONASRT_NAME=`basename $TRAVIS_BUILD_DIR`
+- mv $TRAVIS_BUILD_DIR $MONASRT_NAME
+- TRAVIS_BUILD_DIR=$PWD
+- SRTVER="1.2.3"
+- wget https://github.com/Haivision/srt/archive/v$SRTVER.tar.gz
+- tar -xvf v$SRTVER.tar.gz
 script:
-    - cd srt-$SRTVER
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-        export OPENSSL_ROOT_DIR=$(brew --prefix openssl);
-        export OPENSSL_LIB_DIR=$(brew --prefix openssl)"/lib";
-        export OPENSSL_INCLUDE_DIR=$(brew --prefix openssl)"/include";
-      fi
-    - ./configure --prefix=../$MONASRT_NAME/srt
-    - make && make install
-    - cd ..
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-        export CFLAGS="-I"$(brew --prefix openssl)"/include";
-      fi
-    - make
-    - cd $MONASRT_NAME
-    - make
+- cd srt-$SRTVER
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OPENSSL_ROOT_DIR=$(brew --prefix
+  openssl); export OPENSSL_LIB_DIR=$(brew --prefix openssl)"/lib"; export OPENSSL_INCLUDE_DIR=$(brew
+  --prefix openssl)"/include"; fi
+- "./configure --prefix=../$MONASRT_NAME/srt"
+- make && make install
+- cd ..
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export CFLAGS="-I"$(brew --prefix openssl)"/include";
+  fi
+- make
+- cd $MONASRT_NAME
+- make
+before_deploy:
+- BUILD_NAME=RTMPtoSRT-$TRAVIS_OS_NAME-$TRAVIS_COMMIT
+- cd $TRAVIS_BUILD_DIR/$MONASRT_NAME
+- ./makeosxbundle.sh $BUILD_NAME
+- mkdir $TRAVIS_BUILD_DIR/output
+- tar -cvf $TRAVIS_BUILD_DIR/output/$BUILD_NAME.tar.gz $BUILD_NAME/
+deploy:
+  provider: s3
+  access_key_id: $AWS_ACCESS_KEY_ID
+  secret_access_key: $AWS_SECRET_ACCESS_KEY
+  bucket: artifacts.awsdev.haivision.com
+  upload-dir: RTMPtoSRT
+  local_dir: $TRAVIS_BUILD_DIR/output/
+  skip_cleanup: true
+  on:
+    all_branches: true
+    condition: $TRAVIS_OS_NAME = "osx"
