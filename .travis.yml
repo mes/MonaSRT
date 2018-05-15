@@ -57,7 +57,7 @@ deploy:
     secure: JZ97P0XmavDwrYRY5yU33cPWFzc8pVNVtO+QwsfcVs0wu/B+x4l6bs5zt/HnB3EzTD6tEkOeyOFB+KrLOaW8KSHqEVQR6bfINZAPT5NDYTftp5wBm4SWnJqXN+z5HZ1xXyuT+7/TQBtMKdnr8e2QZCldgR9kpRf9AQyeKBewwDy5+d/jxJsVbMrv7QY1cXNPpjTja5M/g9/axGFQVJpE+kMFVPsoqIvgd2NhpUXGpjY9yuC26b2A8ePENpRfG6MwWUTad5ho9fOQ7/HS4/BtNpsaL/T3lkTaBICABcPniJlwTX5WW8pvPX5ivpGXrPnulkCTVRafc0MN5+CpzFrTU18EgUyFjqVTKkZsK3zmgW4DPZf2gMu622KcGuyPxusqX+pCofIyuSvOhSt104Srqi8X7EKU3LXoCtCHgNUQ7QMQky4pK0tCMgVi0GV1ACrlbI0ZJNxeEoau/OPhk19iYrwsCFuLV+prE98Ep4tcb2RwR96hmvh7kaYm9EzPjgERou73DJ7dqmEiOPABjrnCaimB1sW5cQwr/NsZ2WzTcYLCKKbesFl7st9wvZF4gtDA9VJdSHM11972gF0l3A3O33jy1GR2tGX78BFXD2sFGnfjUOTjSj5GrgYW9m6Mzkf0EHgUYG924UczmHnDntWjIBg7u94SXwmiEiJBfnizQEw=
   bucket: artifacts.awsdev.haivision.com
   upload-dir: RTMPtoSRT
-  local_dir: $TRAVIS_BUILD_DIR/$MONASRT_NAME/$BUILD_NAME.tar.gz
+  local_dir: $TRAVIS_BUILD_DIR/$MONASRT_NAME/
   on:
     all_branches: true
     condition: $TRAVIS_OS_NAME = "osx"
