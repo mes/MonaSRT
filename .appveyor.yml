@@ -57,7 +57,7 @@ build_script:
 after_build:
    - ps: mv ${Env:APPVEYOR_BUILD_FOLDER}\MonaServer2\MonaSRT\${Env:CONFIGURATION}\MonaSRT.exe ${Env:APPVEYOR_BUILD_FOLDER}\MonaServer2\MonaSRT\${Env:CONFIGURATION}\RTMPtoSRT.exe
    - cmd: 7z a RTMPtoSRT-%APPVEYOR_REPO_BRANCH%-%CONFIGURATION%-%APPVEYOR_BUILD_VERSION%.zip %APPVEYOR_BUILD_FOLDER%\MonaServer2\MonaSRT\%CONFIGURATION%\*
-   - cmd: appveyor PushArtifact RTMPtoSRT-%APPVEYOR_REPO_BRANCH%-%CONFIGURATION%-%APPVEYOR_BUILD_VERSION%.zip
+   - cmd: appveyor PushArtifact RTMPtoSRT-%APPVEYOR_REPO_BRANCH%-%CONFIGURATION%-%APPVEYOR_BUILD_VERSION%.zip -DeploymentName RTMPtoSRT
 
 on_finish:
 # - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
