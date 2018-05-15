@@ -518,7 +518,7 @@ class SRTOut::Client::OpenSrtPIMPL : private Thread {
 				ostr << "\"recv\": {";
 				ostr << "\"packets\":" << mon.pktRecv << ",";
 				ostr << "\"packetsLost\":" << mon.pktRcvLoss << ",";
-				ostr << "\"packetsDopped\":" << mon.pktRcvDrop << ",";
+				ostr << "\"packetsDropped\":" << mon.pktRcvDrop << ",";
 				ostr << "\"packetsRetransmitted\":" << mon.pktRcvRetrans << ",";
 				ostr << "\"packetsBelated\":" << mon.pktRcvBelated << ",";
 				ostr << "\"bytes\":" << mon.byteRecv << ",";
