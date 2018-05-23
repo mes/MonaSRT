@@ -27,7 +27,7 @@ build_script:
   - robocopy %APPVEYOR_BUILD_FOLDER% C:/projects/tmp/MonaSRT/ /move /e || exit 0
   - git clone https://github.com/MonaSolutions/MonaServer2.git
   - ps: cd MonaServer2
-  - git checkout c983774589577ecd9778e304346a08a0db10bf02
+  - git checkout 6a16a9841abcb54c5b68d1d2e02cb1e7e72546b0
   - ps: cd ..
   - robocopy C:/projects/tmp/MonaSRT/ MonaServer2/MonaSRT/ /move /e || exit 0
   - git clone https://github.com/Haivision/srt.git MonaServer2/MonaSRT/srtbuild

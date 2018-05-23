@@ -25,7 +25,7 @@ before_install:
 - cd $HOME
 - git clone https://github.com/MonaSolutions/MonaServer2.git
 - cd MonaServer2
-- git checkout 953a24d2e5feae68cef7b9d73a4abf3abf765e20
+- git checkout 6a16a9841abcb54c5b68d1d2e02cb1e7e72546b0
 - MONASRT_NAME=`basename $TRAVIS_BUILD_DIR`
 - mv $TRAVIS_BUILD_DIR $MONASRT_NAME
 - TRAVIS_BUILD_DIR=$PWD

@@ -223,15 +223,19 @@ bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, Da
 					json.dump(response);
 				} else if (name == "status") {
 					Exception ex;
-					std::vector<Mona::IPAddress> ips = Mona::IPAddress::Locals(ex);
-					std::vector<Mona::IPAddress>::const_iterator it = ips.begin();
-					while (it < ips.end()) {
-						if (it->family() != Mona::IPAddress::IPv4
-								|| it->isLoopback() || it->isLinkLocal()) {
-							it = ips.erase(it);
-						} else {
-							it++;
+					std::vector<Mona::IPAddress> ips;
+					if (Mona::IPAddress::Locals(ex, ips)) {
+						std::vector<Mona::IPAddress>::const_iterator it = ips.begin();
+						while (it < ips.end()) {
+							if (it->family() != Mona::IPAddress::IPv4
+									|| it->isLoopback() || it->isLinkLocal()) {
+								it = ips.erase(it);
+							} else {
+								it++;
+							}
 						}
+					} else {
+						ERROR("Failed to query local IP addresses. ", ex);
 					}
 					const json11::Json json = json11::Json::object({
 						{ "version", MONASRT_VERSION_STRING },
