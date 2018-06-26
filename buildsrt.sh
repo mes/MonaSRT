@@ -1,6 +1,6 @@
 #!/bin/sh
 
-SRTVER="1.2.3"
+SRTVER="1.3.1"
 [ -d srt-$SRTVER ] || {
 	wget https://github.com/Haivision/srt/archive/v$SRTVER.tar.gz || { 
 		echo "can't download SRT."; 
