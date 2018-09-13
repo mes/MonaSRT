@@ -17,7 +17,7 @@ matrix:
   - os: linux
     env: MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
   - os: osx
-    osx_image: xcode9.2
+    osx_image: xcode6.4
     env: MATRIX_EVAL="CC=clang && CXX=clang++"
 before_install:
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; brew install dylibbundler; fi
