@@ -17,7 +17,7 @@ matrix:
   - os: linux
     env: MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
   - os: osx
-    osx_image: xcode6.4
+    osx_image: xcode9.2
     env: MATRIX_EVAL="CC=clang && CXX=clang++"
 before_install:
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; brew install dylibbundler; fi
@@ -34,9 +34,14 @@ before_install:
 - tar -xvf v$SRTVER.tar.gz
 script:
 - cd srt-$SRTVER
-- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OPENSSL_ROOT_DIR=$(brew --prefix
-  openssl); export OPENSSL_LIB_DIR=$(brew --prefix openssl)"/lib"; export OPENSSL_INCLUDE_DIR=$(brew
-  --prefix openssl)"/include"; fi
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+  export OPENSSL_ROOT_DIR=$(brew --prefix openssl);
+  export OPENSSL_LIB_DIR=$(brew --prefix openssl)"/lib";
+  export OPENSSL_INCLUDE_DIR=$(brew --prefix openssl)"/include";
+  export  LDFLAGS="-mmacosx-version-min=10.9";
+  export   CFLAGS="-mmacosx-version-min=10.9";
+  export CXXFLAGS="-mmacosx-version-min=10.9";
+  fi
 - "./configure --prefix=../$MONASRT_NAME/srt"
 - make && make install
 - cd ..
