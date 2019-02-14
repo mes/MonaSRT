@@ -20,7 +20,10 @@ matrix:
     osx_image: xcode9.2
     env: MATRIX_EVAL="CC=clang && CXX=clang++"
 before_install:
-- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; brew install dylibbundler; fi
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+    brew update;
+    brew install dylibbundler;
+  fi
 - eval "${MATRIX_EVAL}"
 - cd $HOME
 - git clone https://github.com/MonaSolutions/MonaServer2.git
@@ -29,18 +32,23 @@ before_install:
 - MONASRT_NAME=`basename $TRAVIS_BUILD_DIR`
 - mv $TRAVIS_BUILD_DIR $MONASRT_NAME
 - TRAVIS_BUILD_DIR=$PWD
-- SRTVER="1.3.1"
+- SRTVER="1.3.2-rc.0"
 - wget https://github.com/Haivision/srt/archive/v$SRTVER.tar.gz
 - tar -xvf v$SRTVER.tar.gz
 script:
 - cd srt-$SRTVER
-- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OPENSSL_ROOT_DIR=$(brew --prefix
-  openssl); export OPENSSL_LIB_DIR=$(brew --prefix openssl)"/lib"; export OPENSSL_INCLUDE_DIR=$(brew
-  --prefix openssl)"/include"; fi
-- "./configure --prefix=../$MONASRT_NAME/srt"
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+    export OPENSSL_ROOT_DIR=$(brew --prefix openssl);
+    export OPENSSL_LIB_DIR=$(brew --prefix openssl)"/lib";
+    export OPENSSL_INCLUDE_DIR=$(brew --prefix openssl)"/include";
+    ./configure --prefix=../$MONASRT_NAME/srt --use-openssl-pc=no;
+  else
+   ./configure --prefix=../$MONASRT_NAME/srt;
+  fi
 - make && make install
 - cd ..
-- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export CFLAGS="-I"$(brew --prefix openssl)"/include";
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+    export CFLAGS="-I"$(brew --prefix openssl)"/include";
   fi
 - make
 - cd $MONASRT_NAME

@@ -29,7 +29,7 @@ struct MonaSRT : Server {
 		Server(cores), _wwwPath(wwwPath), _terminateSignal(terminateSignal), _srtIn(nullptr) { }
 
 	virtual ~MonaSRT() { stop(); }
-
+	bool startChannel(const std::string &config, const std::string &channelId, std::string &msg);
 
 protected:
 

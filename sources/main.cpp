@@ -83,10 +83,10 @@ struct ServerApp : ServerApplication  {
 
 	void defineOptions(Exception& ex, Options& options)
 	{
-		options.add(ex, "srttarget", "st", "Specify SRT target.")
-			.argument("<host>:<port>")
+		options.add(ex, "config", "c", "Specify JSON configuration.")
+			.argument("<JSONconfig>")
 			.handler([this](Exception& ex, const string& value) { 
-				setString("srt.target", value);
+				setString("json.config", value);
 				return true; });
 
 		ServerApplication::defineOptions(ex, options);
