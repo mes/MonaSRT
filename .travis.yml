@@ -19,8 +19,8 @@ matrix:
   - os: osx
     osx_image: xcode9.2
     env: MATRIX_EVAL="CC=clang && CXX=clang++"
-    before_install: brew update
-    install: brew install dylibbundler
+before_install:
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; brew install dylibbundler;
 - eval "${MATRIX_EVAL}"
 - cd $HOME
 - git clone https://github.com/MonaSolutions/MonaServer2.git
