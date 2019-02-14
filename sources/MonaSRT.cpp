@@ -104,10 +104,118 @@ private:
 	ServerAPI& _api;
 };
 
-//// External Publish ////
+//// Apply channel config ////
+bool MonaSRT::startChannel(
+		const std::string &config,
+		const std::string &channelId,
+		std::string &msg) {
+	std::string err;
+	json11::Json json = json11::Json::parse(config, err);
+
+	if (!err.empty()) {
+		msg = "Error parsing JSON command: " + err;
+		return false;
+	}
+
+	Mona::Media::Stream* pStream = nullptr;
+	std::string appName;
+	const std::string& inputUrl = json["inputUrl"].string_value();
+	::url inurl(inputUrl);
+	if (inurl._protocol == "rtmp" || inurl._protocol == "rtmps") {
+		if (inurl._app.empty()) {
+			msg = "Invalid RTMP application";
+			return false;
+		}
+		appName = inurl._app;
+	} else if (inurl._protocol == "udp") {
+		Exception ex;
+		appName = channelId;
+		std::string description(inurl._host + " udp/ts");
+		pStream = Mona::Media::Stream::New(
+			ex = nullptr, description.c_str(),
+			timer, ioFile, ioSocket, nullptr);
+		if (pStream == nullptr) {
+			msg = "UDP Stream creation failed!";
+			return false;
+		}
+	} else {
+			msg = "Unsupported input protocol " + inurl._protocol;
+			return false;
+	}
+
+	const std::string& outputUrl = json["outputUrl"].string_value();
+	::url outurl(outputUrl);
+	if (outurl._protocol != "srt") {
+			msg = "Unsupported output protocol " + inurl._protocol;
+			return false;
+	}
+
+	if (_appsByName.find(appName) != _appsByName.end()) {
+		msg = "Existing applicaion";
+		return false;
+	}
+
+	Mona::Parameters params;
+	const json11::Json::object &object = json.object_items();
+	for (auto &it : object) {
+		if (it.second.is_string()) {
+			const std::string& key = it.first;
+			const std::string& val = it.second.string_value();
+
+			if ((true)) {
+				DEBUG(key, " = ", val);
+			}
+			params.setString(key, val);
+		}
+	}
+	SRTOut * app = new SRTOut(params);
+	_appsMutex.lock();
+	_appsByName[appName] = app;
+	_appsById[channelId] = app;
+	_appsMutex.unlock();
+
+	if (pStream != nullptr) {
+		Exception ex;
+		UDPClient * pClient = new UDPClient(*this, "UDP");
+		pClient->setCustomData<App::Client>(
+			app->newClient(ex, *pClient));
+
+		Mona::Publication* pPublication = publish(
+			ex=nullptr, *pClient, appName);
+		if (pPublication == nullptr) {
+			delete pClient;
+			delete pStream;
+
+			msg = "Failed to publish UDP stream";
+			return false;
+		}
+		pStream->start(*pPublication);
+
+		_appsMutex.lock();
+		_streamsById[channelId] = pStream;
+		_clientById[channelId] = pClient;
+		_publicationById[channelId] = pPublication;
+		_appsMutex.unlock();
+	}
+
+	msg = "Channel " + channelId + " started";
+	return true;
+}
 
 //// Server Events /////
 void MonaSRT::onStart() {
+	std::string config;
+	if (getString("json.config", config)) {
+		INFO("Got config: ", config);
+
+		std::string msg;
+		if (startChannel(config, std::string("ManualChannel"), msg)) {
+			INFO(msg);
+		} else {
+			ERROR(msg);
+		}
+		
+	}
 }
 
 void MonaSRT::manage() {
@@ -253,7 +361,6 @@ bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, Da
 				}
 			}
 		} else if (method == "POST" && !client.path.empty() && !name.empty()) {
-			Mona::Media::Stream* pStream = nullptr;
 			std::vector<std::string> parts;
 			Mona::String::Split(client.path, "/", parts,
 				SPLIT_TRIM | SPLIT_IGNORE_EMPTY);
@@ -269,108 +376,14 @@ bool MonaSRT::onInvocation(Exception& ex, Client& client, const string& name, Da
 					}
 					DEBUG("Start ", channelId, " channel");
 
-					std::string err;
-					json11::Json json = json11::Json::parse(body, err);
-
-					if (!err.empty()) {
-						msg = "Error parsing JSON command: " + err;
-						ERROR(msg);
-						makeJsonResponse(response, "Fail", msg);
-						goto httpout;
-					}
-
-					std::string appName;
-					const std::string& inputUrl = json["inputUrl"].string_value();
-					::url inurl(inputUrl);
-					if (inurl._protocol == "rtmp" || inurl._protocol == "rtmps") {
-						if (inurl._app.empty()) {
-							msg = "Invalid RTMP application";
-							ERROR(msg);
-							makeJsonResponse(response, "Fail", msg);
-							goto httpout;
-						}
-						appName = inurl._app;
-					} else if (inurl._protocol == "udp") {
-						appName = channelId;
-						std::string description(inurl._host + " udp/ts");
-						pStream = Mona::Media::Stream::New(
-							ex = nullptr, description.c_str(),
-							timer, ioFile, ioSocket, nullptr);
-						if (pStream == nullptr) {
-							msg = "UDP Stream creation failed!";
-							ERROR(msg);
-							makeJsonResponse(response, "Fail", msg);
-							goto httpout;
-						}
+					std::string msg;
+					if (startChannel(body, channelId, msg)) {
+						INFO(msg);
+						makeJsonResponse(response, "Success", msg);
 					} else {
-							msg = "Unsupported input protocol " + inurl._protocol;
-							ERROR(msg);
-							makeJsonResponse(response, "Fail", msg);
-							goto httpout;
-					}
-
-					const std::string& outputUrl = json["outputUrl"].string_value();
-					::url outurl(outputUrl);
-					if (outurl._protocol != "srt") {
-							msg = "Unsupported output protocol " + inurl._protocol;
-							ERROR(msg);
-							makeJsonResponse(response, "Fail", msg);
-							goto httpout;
-					}
-					
-					if (_appsByName.find(appName) != _appsByName.end()) {
-						msg = "Existing applicaion";
 						ERROR(msg);
 						makeJsonResponse(response, "Fail", msg);
-						goto httpout;
 					}
-
-					Mona::Parameters params;
-					const json11::Json::object &object = json.object_items();
-					for (auto &it : object) {
-						if (it.second.is_string()) {
-							const std::string& key = it.first;
-							const std::string& val = it.second.string_value();
-
-							if ((true)) {
-								DEBUG(key, " = ", val);
-							}
-							params.setString(key, val);
-						}
-					}
-					SRTOut * app = new SRTOut(params);
-					_appsMutex.lock();
-					_appsByName[appName] = app;
-					_appsById[channelId] = app;
-					_appsMutex.unlock();
-
-					if (pStream != nullptr) {
-						UDPClient * pClient = new UDPClient(*this, "UDP");
-						pClient->setCustomData<App::Client>(
-							app->newClient(ex, *pClient));
-
-						Mona::Publication* pPublication = publish(
-							ex=nullptr, *pClient, appName);
-						if (pPublication == nullptr) {
-							delete pClient;
-							delete pStream;
-
-							msg = "Failed to publish UDP stream";
-							ERROR(msg);
-							makeJsonResponse(response, "Fail", msg);
-							goto httpout;
-						}
-						pStream->start(*pPublication);
-
-						_appsMutex.lock();
-						_streamsById[channelId] = pStream;
-						_clientById[channelId] = pClient;
-						_publicationById[channelId] = pPublication;
-						_appsMutex.unlock();
-					}
-
-					msg = "Channel " + channelId + " started";
-					makeJsonResponse(response, "Success", msg);
 				} else if (name == "stop") {
 					auto abiIt = _appsById.find(channelId);
 					if (abiIt != _appsById.end()) {
