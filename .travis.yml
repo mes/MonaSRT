@@ -43,7 +43,7 @@ script:
     export OPENSSL_INCLUDE_DIR=$(brew --prefix openssl)"/include";
     ./configure --prefix=../$MONASRT_NAME/srt --use-openssl-pc=no;
   else
-   ./configure --prefix=../$MONASRT_NAME/srt
+   ./configure --prefix=../$MONASRT_NAME/srt;
   fi
 - make && make install
 - cd ..
